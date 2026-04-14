@@ -43,3 +43,39 @@ def test_bit_flip_rate_extraction():
 
     expected = np.array([0.0] * 5 + [1.0] * 5)
     np.testing.assert_array_equal(rates, expected)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 simulator tests
+# ---------------------------------------------------------------------------
+
+def test_dephasing_simulator_import():
+    """DephasingSimulator can be imported."""
+    from quantum_drift_detector.simulators import DephasingSimulator
+    assert DephasingSimulator is not None
+
+
+def test_dephasing_simulator_shape():
+    """DephasingSimulator returns correct shape."""
+    from quantum_drift_detector.simulators import DephasingSimulator
+    sim = DephasingSimulator(gamma_pre=0.2, gamma_post=1.5, changepoint=5)
+    data = sim.generate_data(n_timesteps=10, n_shots=100)
+    assert data.shape == (10, 100)
+    assert data.dtype == int
+    assert np.all((data == 0) | (data == 1))
+
+
+def test_correlated_simulator_import():
+    """CorrelatedNoiseSimulator can be imported."""
+    from quantum_drift_detector.simulators import CorrelatedNoiseSimulator
+    assert CorrelatedNoiseSimulator is not None
+
+
+def test_correlated_simulator_shape():
+    """CorrelatedNoiseSimulator returns correct shape."""
+    from quantum_drift_detector.simulators import CorrelatedNoiseSimulator
+    sim = CorrelatedNoiseSimulator(mu_pre=0.01, mu_post=0.05, phi=0.5)
+    data = sim.generate_data(n_timesteps=10, n_shots=100)
+    assert data.shape == (10, 100)
+    assert data.dtype == int
+    assert np.all((data == 0) | (data == 1))

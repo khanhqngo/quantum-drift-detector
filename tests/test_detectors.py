@@ -161,3 +161,79 @@ class TestWindowDetector:
         # Scores outside the valid range should be exactly 0.
         assert result["scores"][0] == 0.0
         assert result["scores"][-1] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Ensemble tests
+# ---------------------------------------------------------------------------
+
+class TestEnsemble:
+    def test_returns_correct_keys(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, _ = obvious_shift
+        result = run_ensemble(rates)
+        expected_keys = {
+            "combined_scores", "cusum_scores_norm", "bocd_scores",
+            "window_scores_norm", "individual_alarms", "detected_at",
+            "threshold", "method",
+        }
+        assert expected_keys.issubset(result.keys())
+
+    def test_combined_scores_shape(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, _ = obvious_shift
+        result = run_ensemble(rates)
+        assert result["combined_scores"].shape == (100,)
+
+    def test_combined_scores_in_range(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, _ = obvious_shift
+        result = run_ensemble(rates)
+        scores = result["combined_scores"]
+        assert np.all(scores >= 0.0)
+        assert np.all(scores <= 1.0 + 1e-9)
+
+    def test_soft_detects_obvious_shift(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, true_cp = obvious_shift
+        result = run_ensemble(rates, method="soft", threshold=0.5)
+        assert result["detected_at"] is not None
+        assert abs(result["detected_at"] - true_cp) <= 20
+
+    def test_hard_detects_obvious_shift(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, true_cp = obvious_shift
+        result = run_ensemble(rates, method="hard", min_votes=2)
+        assert result["detected_at"] is not None
+        assert abs(result["detected_at"] - true_cp) <= 20
+
+    def test_individual_alarms_keys(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, _ = obvious_shift
+        result = run_ensemble(rates)
+        assert set(result["individual_alarms"].keys()) == {"cusum", "bocd", "window"}
+
+    def test_no_detection_on_flat_series(self, no_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        # A very flat series with a high threshold should not alarm.
+        result = run_ensemble(
+            no_shift,
+            cusum_params={"threshold": 10.0},
+            bocd_params={"threshold": 0.99},
+            window_params={"threshold": 100.0},
+            threshold=0.99,
+            method="soft",
+        )
+        assert result["detected_at"] is None
+
+    def test_invalid_method_raises(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, _ = obvious_shift
+        with pytest.raises(ValueError):
+            run_ensemble(rates, method="unknown")
+
+    def test_invalid_weights_raises(self, obvious_shift):
+        from quantum_drift_detector.detectors import run_ensemble
+        rates, _ = obvious_shift
+        with pytest.raises(ValueError):
+            run_ensemble(rates, weights=[1.0, 1.0])  # wrong length

@@ -256,7 +256,11 @@ print(summary_B.round(3).to_string())
 
 std_recall = summary_B.loc["Standard ensemble", "recall"]
 acf_recall = summary_B.loc["ACF-enhanced ensemble", "recall"]
-gap        = std_recall                   # performance lost vs perfect (1.0)
+acf_far    = summary_B.loc["ACF-enhanced ensemble", "false_alarm"]
+
+# "Lost performance" is the gap between the standard ensemble and perfect
+# recall (1.0) — NOT the recall it already achieved.
+gap        = 1.0 - std_recall
 recovery   = (acf_recall - std_recall)    # gain from ACF enhancement
 recovery_pct = recovery / max(gap, 1e-6) * 100 if gap > 0 else 0
 
@@ -264,7 +268,14 @@ print(f"\n★ CLAIM 3 — ACF recovery:")
 print(f"   Standard ensemble recall:      {std_recall:.1%}")
 print(f"   ACF-enhanced ensemble recall:  {acf_recall:.1%}")
 print(f"   Absolute recall gain:          +{recovery:.1%}")
-print(f"   Recovery of missed detections: {recovery_pct:.0f}%")
+print(f"   Recovery of lost performance:  {recovery_pct:.1f}%")
+print(f"   ACF-enhanced false-alarm rate: {acf_far:.1%}")
+
+if acf_far > 0.20:
+    print("\n   ⚠  WARNING: the ACF-enhanced detector's false-alarm rate is high.")
+    print("      A detector that fires before the changepoint in most trials is")
+    print("      not a usable detector, and its recall gain is NOT a real result.")
+    print("      Calibrate the rolling-ACF null distribution before claiming this.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 total_trials = len(df_A) + len(df_B)
@@ -273,24 +284,41 @@ print("\n" + "=" * 65)
 print("READY-TO-PASTE CONCLUSION SENTENCE")
 print("=" * 65)
 
-# Build the actual sentence with real numbers
-lo = round(nonmarkov_miss_range[0] * 100)
-hi = round(nonmarkov_miss_range[1] * 100)
-indep_ceil = int(np.ceil(independent_miss_mean * 100))
-rec_pct = round(recovery_pct)
+# Per-detector degradation is the defensible claim: comparing the SAME detector
+# against itself at phi=0 vs phi=0.9.  Averaging miss rates ACROSS detectors
+# hides the fact that some are weak even under independent noise.
+per_det = (
+    ind_A.pivot_table(index="detector", columns="phi", values="miss_rate")
+)
+worst_det   = (per_det[0.9] - per_det[0.0]).idxmax()
+worst_indep = per_det.loc[worst_det, 0.0]
+worst_corr  = per_det.loc[worst_det, 0.9]
+best_det    = per_det[0.9].idxmin()
+best_corr   = per_det.loc[best_det, 0.9]
+
+print("\n── Per-detector miss rate: independent (phi=0) vs correlated (phi=0.9) ──")
+print(per_det[[0.0, 0.9]].rename(columns={0.0: "phi=0.0", 0.9: "phi=0.9"})
+      .to_string(float_format=lambda v: f"{v:.0%}"))
+
 print(f"""
-Showed standard detectors miss {lo}–{hi}% of drift events under non-Markovian
-noise vs. <{indep_ceil}% miss rate under independent noise, with
-autocorrelation-aware features recovering {rec_pct}% of lost performance
-across {total_trials}+ evaluation runs.
+Benchmarked CUSUM, Bayesian online change-point detection, and a windowed-KL
+detector across {total_trials} evaluation runs on simulated quantum noise, showing
+that AR(1) temporal correlation raises {worst_det}'s miss rate from
+{worst_indep:.0%} to {worst_corr:.0%} (phi 0 -> 0.9) while {best_det} degrades to only
+{best_corr:.0%}, isolating which change-point assumptions survive non-Markovian noise.
 """)
 
 print("=" * 65)
-print("SUBSTITUTION GUIDE")
+print("NOTES ON WHAT IS AND IS NOT SUPPORTED")
 print("=" * 65)
-print(f"  'miss X–Y% under non-Markovian'  → {lo}–{hi}%")
-print(f"  '<Z% under independent noise'    → <{indep_ceil}%")
-print(f"  'recovering W%'                  → {rec_pct}%")
-print(f"  '100+ evaluation runs'           → {total_trials}+ runs")
+print(f"  SUPPORTED  : per-detector degradation, phi=0 -> phi=0.9")
+print(f"               {worst_det}: {worst_indep:.0%} -> {worst_corr:.0%} miss")
+print(f"               {best_det}: {per_det.loc[best_det, 0.0]:.0%} -> {best_corr:.0%} miss")
+print(f"  SUPPORTED  : standard ensemble is blind to a pure correlation-structure")
+print(f"               change ({std_recall:.0%} recall) — expected, it watches the mean")
+print(f"  NOT YET    : the ACF-aware 'fix'. Recall {acf_recall:.0%} but false-alarm")
+print(f"               rate {acf_far:.0%}. Do not cite as a recovery result.")
+print(f"  CAUTION    : averaging miss rate across detectors ({independent_miss_mean:.0%} at phi=0)")
+print(f"               hides that Window is already weak on independent noise.")
 print(f"\n  (Based on {N_TRIALS} trials per scenario, tolerance={TOLERANCE} timesteps,")
 print(f"   N={N_SH} shots, T={N_TS} timesteps, true changepoint at t={TRUE_CP})")

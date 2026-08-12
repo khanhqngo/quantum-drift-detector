@@ -39,7 +39,7 @@ plot_drift_detection(data, true_changepoint=50)
 
 ## Current Status
 
-### ✅ Phase 1: Foundation (Complete)
+### Phase 1: Foundation (Complete)
 - [x] Project structure and packaging
 - [x] Depolarizing noise simulator
 - [x] Bit-flip rate feature extraction
@@ -47,7 +47,7 @@ plot_drift_detection(data, true_changepoint=50)
 - [x] Unit tests
 - [x] Tutorial notebooks (01_intro, 02_simulating_drift)
 
-### 🔄 Phase 2: Detection Algorithms (Next)
+### Phase 2: Detection Algorithms (Next)
 - [ ] CUSUM detector
 - [ ] Bayesian Online Change-Point Detection
 - [ ] Sliding-window KL-divergence detector
